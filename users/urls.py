@@ -4,8 +4,6 @@ from . import views
 app_name = 'users'
 
 urlpatterns = [
-    path('', views.UserListCreateView.as_view(), name='user-list-create'),
-    path('<int:pk>/', views.UserDetailView.as_view(), name='user-detail'),
     # Owner APIs
     path('owners/', views.OwnerListCreateView.as_view(), name='owner-list-create'),
     path('owners/<int:owner_id>/', views.OwnerDetailView.as_view(), name='owner-detail'),

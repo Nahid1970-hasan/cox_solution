@@ -5,12 +5,14 @@ Django settings for backend_project project.
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 # Load .env from project root (optional; env vars can also be set in the shell)
-load_dotenv(BASE_DIR / '.env')
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BASE_DIR / '.env')
+except ImportError:
+    pass  # python-dotenv not installed; use system env only
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get(
@@ -26,8 +28,10 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(','
 # Frontend URL for CORS and CSRF (comma-separated for multiple origins)
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000').strip()
 FRONTEND_ORIGINS = [o.strip() for o in FRONTEND_URL.split(',') if o.strip()]
+if not FRONTEND_ORIGINS:
+    FRONTEND_ORIGINS = ['http://localhost:3000']  # fallback so CORS works in dev
 
-# Application definition
+# Application definition (manage.py is the CLI script for runserver/migrate etc.; it is not an app and is not listed here)
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -37,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework',
+    'rest_framework.authtoken',  # Token auth for REST API (use with TokenAuthentication)
     'users',
 ]
 
@@ -121,11 +126,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'users.User'
 
 # CORS: allow frontend to call API
-CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
+CORS_ALLOWED_ORIGINS = [
+    "http://127.0.0.1:5173",   # Vite frontend (VITE_FRONTEND_HOST=127.0.0.1, VITE_PORT=5173)
+    "http://localhost:5173",   # Vite frontend (localhost)
+    "http://localhost:3000",   # alternative frontend URL
+]
+# Add any extra origins from FRONTEND_URL env (no duplicates)
+CORS_ALLOWED_ORIGINS = list(dict.fromkeys(CORS_ALLOWED_ORIGINS + FRONTEND_ORIGINS))
 CORS_ALLOW_CREDENTIALS = True  # required for session/cookie auth from frontend
 
 # CSRF: trust frontend origin for cookie-based auth
-CSRF_TRUSTED_ORIGINS = FRONTEND_ORIGINS
+CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
 
 # API base URL (for frontend .env: REACT_APP_API_URL or VITE_API_URL etc.)
 API_BASE_URL = os.environ.get('API_BASE_URL', 'http://localhost:8000').strip()
@@ -134,6 +145,7 @@ API_BASE_URL = os.environ.get('API_BASE_URL', 'http://localhost:8000').strip()
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',

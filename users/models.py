@@ -1,20 +1,35 @@
 from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.hashers import make_password, check_password
 from django.db import models
 
 
 class User(AbstractUser):
-    """Custom user model (optional extension of Django's AbstractUser)."""
+    """User table: users who can login. user_id (id), name, email, role, status, created_date."""
+
+    ROLE_CHOICES = [
+        ('user', 'User'),
+        ('admin', 'Admin'),
+        ('superadmin', 'Superadmin'),
+    ]
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+    ]
 
     email = models.EmailField(unique=True, blank=False)
+    name = models.CharField(max_length=255, blank=True)  # Name
+    role = models.CharField(max_length=50, choices=ROLE_CHOICES, default='user')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    created_date = models.DateTimeField(auto_now_add=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'users_user'
-        ordering = ['-date_joined']
+        ordering = ['-created_date', '-date_joined']
 
     def __str__(self):
-        return self.username
+        return self.name or self.username
 
 
 class Owner(models.Model):
@@ -51,6 +66,38 @@ class Project(models.Model):
 
     def __str__(self):
         return self.project_name
+
+
+class SuperAdmin(models.Model):
+    """Superadmin table: user_id (PK), name, email, password, role, status."""
+
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+    ]
+    ROLE_CHOICES = [
+        ('superadmin', 'Superadmin'),
+    ]
+
+    user_id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=255)
+    email = models.EmailField(unique=True)
+    password = models.CharField(max_length=128)  # stored hashed
+    role = models.CharField(max_length=50, choices=ROLE_CHOICES, default='superadmin')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+
+    class Meta:
+        db_table = 'superadmin'
+        ordering = ['user_id']
+
+    def __str__(self):
+        return self.name
+
+    def set_password(self, raw_password):
+        self.password = make_password(raw_password)
+
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)
 
 
 class LoginLog(models.Model):
