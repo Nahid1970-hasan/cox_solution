@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
-from .models import Owner, Project, SuperAdmin
+from .models import Owner, Project, SuperAdmin, UploadFile
 
 User = get_user_model()
 
@@ -18,14 +18,15 @@ def get_display_name(user):
 
 
 def _normalize_choice(value, valid_choices):
-    """Accept display or key; return lowercase key. valid_choices = [('key', 'Label'), ...]"""
+    """Accept display or key; return key. Handles 'Inactive', \"Inactive\", etc."""
     if value is None or value == '':
         return value
-    s = str(value).strip().lower()
+    # Strip quotes and whitespace (e.g. "\"Inactive\"" or " Inactive ")
+    s = str(value).strip().strip('"\'').strip().lower()
     for key, label in valid_choices:
-        if key.lower() == s or (label and str(label).lower() == s):
+        if key.lower() == s or (label and str(label).strip().lower() == s):
             return key
-    return value  # let default validation message apply
+    return value
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -42,6 +43,28 @@ class UserSerializer(serializers.ModelSerializer):
             'created_date', 'is_active', 'date_joined'
         ]
         read_only_fields = ['user_id', 'username', 'created_date', 'date_joined']
+
+    def to_internal_value(self, data):
+        # Normalize status/role so "Inactive", "inactive", "\"Inactive\"" all work
+        if isinstance(data, dict):
+            data = data.copy()
+            if 'status' in data and data['status'] is not None and str(data['status']).strip():
+                data['status'] = _normalize_choice(data['status'], User.STATUS_CHOICES)
+            if 'role' in data and data['role'] is not None and str(data['role']).strip():
+                data['role'] = _normalize_choice(data['role'], User.ROLE_CHOICES)
+        return super().to_internal_value(data)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['name'] = get_display_name(instance)
+        return data
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save(update_fields=list(validated_data.keys()))
+        instance.refresh_from_db()
+        return instance
 
 
 class UserLoginResponseSerializer(serializers.ModelSerializer):
@@ -63,30 +86,6 @@ class UserLoginResponseSerializer(serializers.ModelSerializer):
         if data.get('last_login') is None:
             data['last_login'] = None
         return data
-
-    def to_internal_value(self, data):
-        # Normalize status/role so "Inactive" or "inactive" both work
-        if isinstance(data, dict):
-            data = data.copy()
-            if 'status' in data and data['status']:
-                data['status'] = _normalize_choice(data['status'], User.STATUS_CHOICES)
-            if 'role' in data and data['role']:
-                data['role'] = _normalize_choice(data['role'], User.ROLE_CHOICES)
-        return super().to_internal_value(data)
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        # Ensure name is never blank: use name, or first_name+last_name, or username
-        data['name'] = get_display_name(instance)
-        return data
-
-    def update(self, instance, validated_data):
-        # Save all editable fields so GET returns correct data after edit
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save(update_fields=list(validated_data.keys()))
-        instance.refresh_from_db()
-        return instance
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
@@ -122,8 +121,28 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Project
-        fields = ['project_id', 'project_name', 'date', 'project_details', 'project_link', 'img_url']
-        read_only_fields = ['project_id']
+        fields = ['project_id', 'project_name', 'date', 'project_details', 'project_link', 'img_url', 'image_file']
+        read_only_fields = ['project_id', 'img_url']
+
+    def create(self, validated_data):
+        image_file = validated_data.pop('image_file', None)
+        project = super().create(validated_data)
+        if image_file is not None:
+            project.image_file = image_file
+            # Store relative URL/path in img_url for frontend convenience
+            project.img_url = project.image_file.url
+            project.save(update_fields=['image_file', 'img_url'])
+        return project
+
+    def update(self, instance, validated_data):
+        image_file = validated_data.pop('image_file', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if image_file is not None:
+            instance.image_file = image_file
+            instance.img_url = instance.image_file.url
+        instance.save()
+        return instance
 
 
 class SuperAdminSerializer(serializers.ModelSerializer):
@@ -172,3 +191,12 @@ class LoginSerializer(serializers.Serializer):
     """Serializer for login request (username + password)."""
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
+
+
+class UploadFileSerializer(serializers.ModelSerializer):
+    """Serializer for uploaded files (image or any file)."""
+
+    class Meta:
+        model = UploadFile
+        fields = ['id', 'file', 'original_name', 'uploaded_at']
+        read_only_fields = ['id', 'uploaded_at']

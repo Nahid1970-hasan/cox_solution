@@ -59,6 +59,7 @@ class Project(models.Model):
     project_details = models.TextField(blank=True)
     project_link = models.URLField(max_length=500, blank=True)
     img_url = models.URLField(max_length=500, blank=True)
+    image_file = models.FileField(upload_to='project_images/', blank=True, null=True)
 
     class Meta:
         db_table = 'project'
@@ -98,6 +99,22 @@ class SuperAdmin(models.Model):
 
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
+
+
+class UploadFile(models.Model):
+    """Uploaded files (images or other files) stored for the API."""
+
+    id = models.AutoField(primary_key=True)
+    file = models.FileField(upload_to='uploads/')
+    original_name = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'upload_file'
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return self.original_name or self.file.name
 
 
 class LoginLog(models.Model):

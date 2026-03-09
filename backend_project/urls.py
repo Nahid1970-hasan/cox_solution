@@ -3,6 +3,8 @@ URL configuration for backend_project project.
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 
 from .views import api_root, root_redirect, health
 from users.views import (
@@ -12,6 +14,9 @@ from users.views import (
     SuperAdminDashboardView,
     SuperAdminCreateView,
     SuperAdminDetailView,
+    ProjectListCreateView,
+    ProjectDetailView,
+    UploadFileView,
 )
 
 urlpatterns = [
@@ -34,4 +39,17 @@ urlpatterns = [
     path('api/update_admin_users/<int:pk>/', SuperAdminDetailView.as_view(), name='update-admin-users'),
     path('api/delete_admin_users/<int:pk>/', SuperAdminDetailView.as_view(), name='delete-admin-users'),
     path('api/users/', include('users.urls')),
+
+    # Project APIs
+    path('api/projectdashboard/', ProjectListCreateView.as_view(), name='project-dashboard'),
+    path('api/projectall/<int:project_id>/', ProjectDetailView.as_view(), name='projectall-detail'),
+    path('api/add_project/', ProjectListCreateView.as_view(), name='add-project'),
+    path('api/update_project/<int:project_id>/', ProjectDetailView.as_view(), name='update-project'),
+    path('api/delete_project/<int:project_id>/', ProjectDetailView.as_view(), name='delete-project'),
+
+    # Upload File APIs
+    path('api/upload/', UploadFileView.as_view(), name='uploadfile'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -44,8 +44,14 @@ def api_root(request):
                 "detail": f"{base}/api/users/owners/<owner_id>/",
             },
             "projects": {
-                "list_create": f"{base}/api/users/projects/",
-                "detail": f"{base}/api/users/projects/<project_id>/",
+                "projectdashboard": f"{base}/api/projectdashboard/",
+                "projectall": f"{base}/api/projectall/<project_id>/",
+                "add_project": f"{base}/api/add_project/",
+                "update_project": f"{base}/api/update_project/<project_id>/",
+                "delete_project": f"{base}/api/delete_project/<project_id>/",
+            },
+            "uploads": {
+                "upload_file": f"{base}/api/upload/",
             },
             "auth": {
                 "login": f"{base}/api/users/login/",

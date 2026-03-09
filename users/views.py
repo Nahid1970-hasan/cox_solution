@@ -7,13 +7,15 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.exceptions import ValidationError, NotFound
+from rest_framework.parsers import MultiPartParser, FormParser
 
-from .models import User, Owner, Project, LoginLog, SuperAdmin
+from .models import User, Owner, Project, LoginLog, SuperAdmin, UploadFile
 from .serializers import (
     UserSerializer, UserCreateSerializer, UserRoleUpdateSerializer,
     UserLoginResponseSerializer,
     OwnerSerializer, ProjectSerializer, LoginSerializer,
     SuperAdminSerializer, SuperAdminCreateSerializer, SuperAdminUpdateSerializer,
+    UploadFileSerializer,
 )
 
 # Common response messages for insert/update/delete
@@ -61,9 +63,9 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         try:
-            partial = kwargs.get('partial', request.method == 'PATCH')
+            # Always partial=True so only sent fields are validated (username not required)
             instance = self.get_object()
-            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            serializer = self.get_serializer(instance, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             self.perform_update(serializer)
             return Response({
@@ -160,6 +162,7 @@ class ProjectListCreateView(generics.ListCreateAPIView):
     """GET: List all projects. POST: Insert new project."""
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
+    parser_classes = [MultiPartParser, FormParser]
 
 
 class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -167,6 +170,22 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
     lookup_url_kwarg = 'project_id'
+    parser_classes = [MultiPartParser, FormParser]
+
+
+class UploadFileView(generics.ListCreateAPIView):
+    """GET: List uploaded files. POST: Upload new image/file."""
+
+    queryset = UploadFile.objects.all()
+    serializer_class = UploadFileSerializer
+    parser_classes = [MultiPartParser, FormParser]
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        # Save original filename for convenience
+        if not instance.original_name and instance.file:
+            instance.original_name = instance.file.name
+            instance.save(update_fields=['original_name'])
 
 
 # SuperAdmin (admin user) APIs
