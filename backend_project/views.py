@@ -50,6 +50,13 @@ def api_root(request):
                 "update_project": f"{base}/api/update_project/<project_id>/",
                 "delete_project": f"{base}/api/delete_project/<project_id>/",
             },
+            "blog": {
+                "blogdashboard": f"{base}/api/blogdashboard/",
+                "blogall": f"{base}/api/blogall/<blog_id>/",
+                "add_blog": f"{base}/api/add_blog/",
+                "update_blog": f"{base}/api/update_blog/<blog_id>/",
+                "delete_blog": f"{base}/api/delete_blog/<blog_id>/",
+            },
             "uploads": {
                 "upload_file": f"{base}/api/upload/",
             },

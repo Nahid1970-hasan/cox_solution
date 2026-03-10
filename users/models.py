@@ -68,6 +68,23 @@ class Project(models.Model):
     def __str__(self):
         return self.project_name
 
+class Blog(models.Model):
+    """Blog table: blog_id (PK), blog_title, date, blog_content, blog_link."""
+
+    blog_id = models.AutoField(primary_key=True)
+    blog_title = models.CharField(max_length=255)
+    date = models.DateField(null=True, blank=True)
+    blog_content = models.TextField(blank=True)
+    blog_link = models.URLField(max_length=500, blank=True)
+    img_url = models.URLField(max_length=500, blank=True)
+    image_file = models.FileField(upload_to='blog_images/', blank=True, null=True)
+
+    class Meta:
+        db_table = 'blog'
+        ordering = ['blog_id']
+
+    def __str__(self):
+        return self.blog_title
 
 class SuperAdmin(models.Model):
     """Superadmin table: user_id (PK), name, email, password, role, status."""

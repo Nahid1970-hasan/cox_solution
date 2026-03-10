@@ -16,6 +16,8 @@ from users.views import (
     SuperAdminDetailView,
     ProjectListCreateView,
     ProjectDetailView,
+    BlogListCreateView,
+    BlogDetailView,
     UploadFileView,
 )
 
@@ -46,6 +48,13 @@ urlpatterns = [
     path('api/add_project/', ProjectListCreateView.as_view(), name='add-project'),
     path('api/update_project/<int:project_id>/', ProjectDetailView.as_view(), name='update-project'),
     path('api/delete_project/<int:project_id>/', ProjectDetailView.as_view(), name='delete-project'),
+
+    # Blog APIs
+    path('api/blogdashboard/', BlogListCreateView.as_view(), name='blog-dashboard'),
+    path('api/blogall/<int:blog_id>/', BlogDetailView.as_view(), name='blogall-detail'),
+    path('api/add_blog/', BlogListCreateView.as_view(), name='add-blog'),
+    path('api/update_blog/<int:blog_id>/', BlogDetailView.as_view(), name='update-blog'),
+    path('api/delete_blog/<int:blog_id>/', BlogDetailView.as_view(), name='delete-blog'),
 
     # Upload File APIs
     path('api/upload/', UploadFileView.as_view(), name='uploadfile'),

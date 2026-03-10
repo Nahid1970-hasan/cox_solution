@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
-from .models import Owner, Project, SuperAdmin, UploadFile
+from .models import Owner, Project, Blog, SuperAdmin, UploadFile
 
 User = get_user_model()
 
@@ -133,6 +133,34 @@ class ProjectSerializer(serializers.ModelSerializer):
             project.img_url = project.image_file.url
             project.save(update_fields=['image_file', 'img_url'])
         return project
+
+    def update(self, instance, validated_data):
+        image_file = validated_data.pop('image_file', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if image_file is not None:
+            instance.image_file = image_file
+            instance.img_url = instance.image_file.url
+        instance.save()
+        return instance
+
+
+class BlogSerializer(serializers.ModelSerializer):
+    """Serializer for Blog model (with optional image upload)."""
+
+    class Meta:
+        model = Blog
+        fields = ['blog_id', 'blog_title', 'date', 'blog_content', 'blog_link', 'img_url', 'image_file']
+        read_only_fields = ['blog_id', 'img_url']
+
+    def create(self, validated_data):
+        image_file = validated_data.pop('image_file', None)
+        blog = super().create(validated_data)
+        if image_file is not None:
+            blog.image_file = image_file
+            blog.img_url = blog.image_file.url
+            blog.save(update_fields=['image_file', 'img_url'])
+        return blog
 
     def update(self, instance, validated_data):
         image_file = validated_data.pop('image_file', None)

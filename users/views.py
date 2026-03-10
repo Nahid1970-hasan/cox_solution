@@ -9,11 +9,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from .models import User, Owner, Project, LoginLog, SuperAdmin, UploadFile
+from .models import User, Owner, Project, Blog, LoginLog, SuperAdmin, UploadFile
 from .serializers import (
     UserSerializer, UserCreateSerializer, UserRoleUpdateSerializer,
     UserLoginResponseSerializer,
-    OwnerSerializer, ProjectSerializer, LoginSerializer,
+    OwnerSerializer, ProjectSerializer, BlogSerializer, LoginSerializer,
     SuperAdminSerializer, SuperAdminCreateSerializer, SuperAdminUpdateSerializer,
     UploadFileSerializer,
 )
@@ -170,6 +170,22 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
     lookup_url_kwarg = 'project_id'
+    parser_classes = [MultiPartParser, FormParser]
+
+
+# Blog APIs
+class BlogListCreateView(generics.ListCreateAPIView):
+    """GET: List all blogs. POST: Insert new blog (with optional image)."""
+    queryset = Blog.objects.all()
+    serializer_class = BlogSerializer
+    parser_classes = [MultiPartParser, FormParser]
+
+
+class BlogDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """GET: Single blog. PUT/PATCH: Update. DELETE: Delete blog."""
+    queryset = Blog.objects.all()
+    serializer_class = BlogSerializer
+    lookup_url_kwarg = 'blog_id'
     parser_classes = [MultiPartParser, FormParser]
 
 
