@@ -51,7 +51,13 @@ class Owner(models.Model):
 
 
 class Project(models.Model):
-    """Project table: project_id (PK), project_name, date, project_details, project_link."""
+    """Project table: project_id (PK), project_name, date, project_details, project_link, status."""
+
+    STATUS_CHOICES = [
+        ('incoming', 'Incoming'),
+        ('ongoing', 'Ongoing'),
+        ('completed', 'Completed'),
+    ]
 
     project_id = models.AutoField(primary_key=True)
     project_name = models.CharField(max_length=255)
@@ -60,6 +66,7 @@ class Project(models.Model):
     project_link = models.URLField(max_length=500, blank=True)
     img_url = models.URLField(max_length=500, blank=True)
     image_file = models.FileField(upload_to='project_images/', blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='incoming', blank=True)
 
     class Meta:
         db_table = 'project'
@@ -69,7 +76,13 @@ class Project(models.Model):
         return self.project_name
 
 class Blog(models.Model):
-    """Blog table: blog_id (PK), blog_title, date, blog_content, blog_link."""
+    """Blog table: blog_id (PK), blog_title, date, blog_content, blog_link, status."""
+
+    STATUS_CHOICES = [
+        ('incoming', 'Incoming'),
+        ('ongoing', 'Ongoing'),
+        ('completed', 'Completed'),
+    ]
 
     blog_id = models.AutoField(primary_key=True)
     blog_title = models.CharField(max_length=255)
@@ -78,6 +91,7 @@ class Blog(models.Model):
     blog_link = models.URLField(max_length=500, blank=True)
     img_url = models.URLField(max_length=500, blank=True)
     image_file = models.FileField(upload_to='blog_images/', blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='incoming', blank=True)
 
     class Meta:
         db_table = 'blog'
@@ -152,3 +166,20 @@ class LoginLog(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.action} at {self.created_at}"
+
+
+class Contact(models.Model):
+    """Contact table: contact_id (PK), name, email, message, date."""
+
+    contact_id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=255)
+    email = models.EmailField()
+    message = models.TextField()
+    date = models.DateField(auto_now_add=True, null=True, blank=True)
+
+    class Meta:
+        db_table = 'contact'
+        ordering = ['-date', 'contact_id']
+
+    def __str__(self):
+        return f"{self.name} <{self.email}>"

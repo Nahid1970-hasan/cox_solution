@@ -9,11 +9,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from .models import User, Owner, Project, Blog, LoginLog, SuperAdmin, UploadFile
+from .models import User, Owner, Project, Blog, LoginLog, SuperAdmin, UploadFile, Contact
 from .serializers import (
     UserSerializer, UserCreateSerializer, UserRoleUpdateSerializer,
     UserLoginResponseSerializer,
-    OwnerSerializer, ProjectSerializer, BlogSerializer, LoginSerializer,
+    OwnerSerializer, ProjectSerializer, BlogSerializer, ContactSerializer, LoginSerializer,
     SuperAdminSerializer, SuperAdminCreateSerializer, SuperAdminUpdateSerializer,
     UploadFileSerializer,
 )
@@ -159,10 +159,19 @@ class OwnerDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Project APIs
 class ProjectListCreateView(generics.ListCreateAPIView):
-    """GET: List all projects. POST: Insert new project."""
+    """GET: List all projects for internal dashboard. POST: Insert new project."""
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
     parser_classes = [MultiPartParser, FormParser]
+
+
+class ProjectPublicDashboardView(generics.ListAPIView):
+    """
+    GET: Public project dashboard.
+    Read‑only list of all projects for the public frontend.
+    """
+    queryset = Project.objects.all()
+    serializer_class = ProjectSerializer
 
 
 class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -202,6 +211,20 @@ class UploadFileView(generics.ListCreateAPIView):
         if not instance.original_name and instance.file:
             instance.original_name = instance.file.name
             instance.save(update_fields=['original_name'])
+
+
+# Contact APIs
+class ContactListCreateView(generics.ListCreateAPIView):
+    """GET: List all contact messages. POST: Save new contact message."""
+    queryset = Contact.objects.all()
+    serializer_class = ContactSerializer
+
+
+class ContactDetailView(generics.RetrieveDestroyAPIView):
+    """GET: Single contact message. DELETE: Delete contact message."""
+    queryset = Contact.objects.all()
+    serializer_class = ContactSerializer
+    lookup_url_kwarg = 'contact_id'
 
 
 # SuperAdmin (admin user) APIs

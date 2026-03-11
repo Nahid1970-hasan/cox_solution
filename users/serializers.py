@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
-from .models import Owner, Project, Blog, SuperAdmin, UploadFile
+from .models import Owner, Project, Blog, SuperAdmin, UploadFile, Contact
 
 User = get_user_model()
 
@@ -121,26 +121,47 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Project
-        fields = ['project_id', 'project_name', 'date', 'project_details', 'project_link', 'img_url', 'image_file']
-        read_only_fields = ['project_id', 'img_url']
+        fields = ['project_id', 'project_name', 'date', 'project_details', 'project_link', 'img_url', 'image_file', 'status']
+        read_only_fields = ['project_id']
 
     def create(self, validated_data):
+        """
+        Support two flows:
+        - Direct file upload via image_file (img_url derived from file URL)
+        - Pre‑uploaded image where frontend sends img_url only (from /api/upload/)
+        """
         image_file = validated_data.pop('image_file', None)
+        img_url = validated_data.pop('img_url', None)
+
         project = super().create(validated_data)
+
         if image_file is not None:
             project.image_file = image_file
-            # Store relative URL/path in img_url for frontend convenience
             project.img_url = project.image_file.url
-            project.save(update_fields=['image_file', 'img_url'])
+        elif img_url:
+            project.img_url = img_url
+
+        project.save()
         return project
 
     def update(self, instance, validated_data):
+        """
+        Same dual support on update:
+        - If image_file provided, overwrite image and img_url from file URL
+        - Else if img_url provided, just update the URL string
+        """
         image_file = validated_data.pop('image_file', None)
+        img_url = validated_data.pop('img_url', None)
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+
         if image_file is not None:
             instance.image_file = image_file
             instance.img_url = instance.image_file.url
+        elif img_url is not None:
+            instance.img_url = img_url
+
         instance.save()
         return instance
 
@@ -150,27 +171,58 @@ class BlogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Blog
-        fields = ['blog_id', 'blog_title', 'date', 'blog_content', 'blog_link', 'img_url', 'image_file']
-        read_only_fields = ['blog_id', 'img_url']
+        fields = ['blog_id', 'blog_title', 'date', 'blog_content', 'blog_link', 'img_url', 'image_file', 'status']
+        read_only_fields = ['blog_id']
 
     def create(self, validated_data):
+        """
+        Support two flows:
+        - Direct file upload via image_file (img_url derived from file URL)
+        - Pre‑uploaded image where frontend sends img_url only (from /api/upload/)
+        """
         image_file = validated_data.pop('image_file', None)
+        img_url = validated_data.pop('img_url', None)
+
         blog = super().create(validated_data)
+
         if image_file is not None:
             blog.image_file = image_file
             blog.img_url = blog.image_file.url
-            blog.save(update_fields=['image_file', 'img_url'])
+        elif img_url:
+            blog.img_url = img_url
+
+        blog.save()
         return blog
 
     def update(self, instance, validated_data):
+        """
+        Same dual support on update:
+        - If image_file provided, overwrite image and img_url from file URL
+        - Else if img_url provided, just update the URL string
+        """
         image_file = validated_data.pop('image_file', None)
+        img_url = validated_data.pop('img_url', None)
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+
         if image_file is not None:
             instance.image_file = image_file
             instance.img_url = instance.image_file.url
+        elif img_url is not None:
+            instance.img_url = img_url
+
         instance.save()
         return instance
+
+
+class ContactSerializer(serializers.ModelSerializer):
+    """Serializer for Contact model (contact form submissions)."""
+
+    class Meta:
+        model = Contact
+        fields = ['contact_id', 'name', 'email', 'message', 'date']
+        read_only_fields = ['contact_id', 'date']
 
 
 class SuperAdminSerializer(serializers.ModelSerializer):

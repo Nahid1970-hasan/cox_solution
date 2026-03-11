@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Owner, Project, Blog, LoginLog, SuperAdmin
+from .models import User, Owner, Project, Blog, LoginLog, SuperAdmin, Contact
 
 
 @admin.register(User)
@@ -21,14 +21,14 @@ class OwnerAdmin(admin.ModelAdmin):
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ['project_id', 'project_name', 'date', 'project_link', 'img_url']
+    list_display = ['project_id', 'project_name', 'date', 'status', 'project_link', 'img_url']
     search_fields = ['project_name', 'project_details']
     ordering = ['project_id']
 
 
 @admin.register(Blog)
 class BlogAdmin(admin.ModelAdmin):
-    list_display = ['blog_id', 'blog_title', 'date', 'blog_link', 'img_url']
+    list_display = ['blog_id', 'blog_title', 'date', 'status', 'blog_link', 'img_url']
     search_fields = ['blog_title', 'blog_content']
     ordering = ['blog_id']
 
@@ -62,3 +62,10 @@ class LoginLogAdmin(admin.ModelAdmin):
     list_display = ['id', 'user', 'action', 'created_at']
     list_filter = ['action', 'created_at']
     ordering = ['-created_at']
+
+
+@admin.register(Contact)
+class ContactAdmin(admin.ModelAdmin):
+    list_display = ['contact_id', 'name', 'email', 'date']
+    search_fields = ['name', 'email', 'message']
+    ordering = ['-date', 'contact_id']
