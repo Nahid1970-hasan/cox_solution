@@ -131,12 +131,13 @@ AUTH_USER_MODEL = 'users.User'
 
 # CORS: allow frontend to call API
 CORS_ALLOWED_ORIGINS = [
-    "http://127.0.0.1:5173",   # Vite frontend (VITE_FRONTEND_HOST=127.0.0.1, VITE_PORT=5173)
-    "http://localhost:5173",   # Vite frontend (localhost)
-    "http://localhost:3000",   # alternative frontend URL
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+    "http://127.0.0.1:5174",
+    "http://localhost:5174",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
-# Add any extra origins from FRONTEND_URL env (no duplicates)
-CORS_ALLOWED_ORIGINS = list(dict.fromkeys(CORS_ALLOWED_ORIGINS + FRONTEND_ORIGINS))
 CORS_ALLOW_CREDENTIALS = True  # required for session/cookie auth from frontend
 
 # CSRF: trust frontend origin for cookie-based auth
