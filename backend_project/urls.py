@@ -22,6 +22,11 @@ from users.views import (
     UploadFileView,
     ContactListCreateView,
     ContactDetailView,
+    BillingInvoiceListCreateView,
+    BillingInvoiceDetailView,
+    InvoiceGeneratePDFView,
+    CompanyInfoListCreateView,
+    CompanyInfoDetailView,
 )
 
 urlpatterns = [
@@ -68,6 +73,22 @@ urlpatterns = [
     path('api/contacts/', ContactListCreateView.as_view(), name='contact-list-create'),
     path('api/save_contacts/', ContactListCreateView.as_view(), name='contact-save'),
     path('api/delete_contacts/<int:contact_id>/', ContactDetailView.as_view(), name='delete-contact'),
+
+    # BillingInvoice APIs
+    path('api/invoices/', BillingInvoiceListCreateView.as_view(), name='invoice-list-create'),
+    path('api/invoice_generate/<int:invoice_id>/', InvoiceGeneratePDFView.as_view(), name='invoice-generate-pdf'),
+    path('api/invoice_generate/', BillingInvoiceListCreateView.as_view(), name='invoice-generate'),  # same as GET api/invoices/
+    path('api/invoices/<int:invoice_id>/', BillingInvoiceDetailView.as_view(), name='invoice-detail'),
+    path('api/add_invoice/', BillingInvoiceListCreateView.as_view(), name='add-invoice'),
+    path('api/update_invoice/<int:invoice_id>/', BillingInvoiceDetailView.as_view(), name='update-invoice'),
+    path('api/delete_invoice/<int:invoice_id>/', BillingInvoiceDetailView.as_view(), name='delete-invoice'),
+
+    # CompanyInfo APIs
+    path('api/companyinfo/', CompanyInfoListCreateView.as_view(), name='companyinfo-list-create'),
+    path('api/companyinfo/<int:com_id>/', CompanyInfoDetailView.as_view(), name='companyinfo-detail'),
+    path('api/add_companyinfo/', CompanyInfoListCreateView.as_view(), name='add-companyinfo'),
+    path('api/update_companyinfo/<int:com_id>/', CompanyInfoDetailView.as_view(), name='update-companyinfo'),
+    path('api/delete_companyinfo/<int:com_id>/', CompanyInfoDetailView.as_view(), name='delete-companyinfo'),
 ]
 
 if settings.DEBUG:

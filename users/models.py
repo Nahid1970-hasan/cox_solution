@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.hashers import make_password, check_password
 from django.db import models
@@ -183,3 +185,63 @@ class Contact(models.Model):
 
     def __str__(self):
         return f"{self.name} <{self.email}>"
+
+
+class BillingInvoice(models.Model):
+    """Billing invoice table: invoice_id (PK), company/client details, pricing, dates.
+    Company block: company_info (FK to CompanyInfo) plus own_com_name, own_com_title, own_com_logo
+    stored on this table. When company_info is set, name/title/logo are synced from CompanyInfo
+    into these fields so the invoice row always has them; API returns from CompanyInfo when linked.
+    """
+
+    invoice_id = models.AutoField(primary_key=True)
+    invoice_no = models.CharField(max_length=100, blank=True)  # e.g. INV-2025-001
+    company_info = models.ForeignKey(
+        'users.CompanyInfo',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='invoices',
+    )
+    # From CompanyInfo when com_id is set, or set directly (e.g. "COX WEB SOLUTIONS", "INnovate, Integrate, Elevate")
+    own_com_name = models.CharField(max_length=255, blank=True)
+    own_com_title = models.CharField(max_length=255, blank=True)
+    own_com_logo = models.URLField(max_length=500, blank=True)  # URL from web or set from uploaded file
+    own_com_logo_file = models.ImageField(upload_to='invoice_logos/', blank=True, null=True)  # logo from folder/file upload
+    client_name = models.CharField(max_length=255, blank=True)
+    client_id = models.CharField(max_length=100, blank=True)
+    client_company = models.CharField(max_length=255, blank=True)
+    client_phone = models.CharField(max_length=50, blank=True)
+    client_address = models.TextField(blank=True)
+    unit_price = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_price = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    billing_description = models.TextField(blank=True)
+    invoice_date = models.DateField(null=True, blank=True)
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    class Meta:
+        db_table = 'billing_invoice'
+        ordering = ['-invoice_date', '-invoice_id']
+
+    def __str__(self):
+        return f"Invoice #{self.invoice_id} - {self.client_name or 'N/A'}"
+
+
+class CompanyInfo(models.Model):
+    """Company info table: com_id (PK), own_com_name, own_com_title, own_com_logo.
+    Used by BillingInvoice: when an invoice links here (company_info), these fields
+    are copied into the invoice's own_com_name, own_com_title, own_com_logo.
+    """
+
+    com_id = models.AutoField(primary_key=True)
+    own_com_name = models.CharField(max_length=255, blank=True)   # e.g. "COX WEB SOLUTIONS"
+    own_com_title = models.CharField(max_length=255, blank=True)  # e.g. "INnovate, Integrate, Elevate"
+    own_com_logo = models.URLField(max_length=500, blank=True)
+
+    class Meta:
+        db_table = 'companyinfo'
+        ordering = ['com_id']
+
+    def __str__(self):
+        return self.own_com_name or f"Company #{self.com_id}"

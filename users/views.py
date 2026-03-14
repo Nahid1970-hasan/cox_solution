@@ -1,21 +1,27 @@
+from io import BytesIO
+
 from django.contrib.auth import authenticate, login, logout
+from django.http import HttpResponse
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.debug import sensitive_variables
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+from reportlab.pdfgen import canvas as pdf_canvas
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.exceptions import ValidationError, NotFound
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 
-from .models import User, Owner, Project, Blog, LoginLog, SuperAdmin, UploadFile, Contact
+from .models import User, Owner, Project, Blog, LoginLog, SuperAdmin, UploadFile, Contact, BillingInvoice, CompanyInfo
 from .serializers import (
     UserSerializer, UserCreateSerializer, UserRoleUpdateSerializer,
     UserLoginResponseSerializer,
     OwnerSerializer, ProjectSerializer, BlogSerializer, ContactSerializer, LoginSerializer,
     SuperAdminSerializer, SuperAdminCreateSerializer, SuperAdminUpdateSerializer,
-    UploadFileSerializer,
+    UploadFileSerializer, BillingInvoiceSerializer, CompanyInfoSerializer,
 )
 
 # Common response messages for insert/update/delete
@@ -225,6 +231,300 @@ class ContactDetailView(generics.RetrieveDestroyAPIView):
     queryset = Contact.objects.all()
     serializer_class = ContactSerializer
     lookup_url_kwarg = 'contact_id'
+
+
+# BillingInvoice APIs
+class BillingInvoiceListCreateView(generics.ListCreateAPIView):
+    """GET: List all invoices. POST: Add new invoice (JSON or form + logo file)."""
+    queryset = BillingInvoice.objects.all()
+    serializer_class = BillingInvoiceSerializer
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def create(self, request, *args, **kwargs):
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            return Response({
+                'success': True,
+                'message': MSG_SUCCESS,
+                'data': serializer.data,
+            }, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': e.detail,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': str(e),
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class BillingInvoiceDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """GET: Single invoice. PUT/PATCH: Update invoice (JSON or form + logo file). DELETE: Delete invoice."""
+    queryset = BillingInvoice.objects.all()
+    serializer_class = BillingInvoiceSerializer
+    lookup_url_kwarg = 'invoice_id'
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def retrieve(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance)
+            return Response({
+                'success': True,
+                'message': MSG_SUCCESS,
+                'data': serializer.data,
+            })
+        except NotFound:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': 'Invoice not found.',
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    def update(self, request, *args, **kwargs):
+        try:
+            partial = kwargs.get('partial', request.method == 'PATCH')
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return Response({
+                'success': True,
+                'message': MSG_SUCCESS,
+                'data': serializer.data,
+            })
+        except ValidationError as e:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': e.detail,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except NotFound:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': 'Invoice not found.',
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': str(e),
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            self.perform_destroy(instance)
+            return Response({
+                'success': True,
+                'message': MSG_SUCCESS,
+            }, status=status.HTTP_200_OK)
+        except NotFound:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': 'Invoice not found.',
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': str(e),
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class InvoiceGeneratePDFView(APIView):
+    """GET api/invoice_generate/<invoice_id>/: return PDF, or JSON if client asks for JSON (fixes invalid API call)."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, invoice_id):
+        try:
+            instance = BillingInvoice.objects.get(invoice_id=invoice_id)
+        except BillingInvoice.DoesNotExist:
+            return Response(
+                {'success': False, 'message': MSG_ERROR, 'errors': 'Invoice not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        data = BillingInvoiceSerializer(instance, context={'request': request}).data
+
+        # If client expects JSON (e.g. fetch/axios), return JSON so frontend gets valid API response
+        accept = request.META.get('HTTP_ACCEPT', '') or ''
+        if 'application/json' in accept or request.GET.get('format') == 'json':
+            return Response({
+                'success': True,
+                'message': MSG_SUCCESS,
+                'data': data,
+                'pdf_url': request.build_absolute_uri(request.path) + '?format=pdf',
+            })
+
+        # Otherwise generate and return PDF
+        buffer = BytesIO()
+        p = pdf_canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        y = height - inch
+        p.setFont('Helvetica-Bold', 16)
+        p.drawString(inch, y, 'INVOICE')
+        y -= 0.4 * inch
+        p.setFont('Helvetica', 10)
+        for label, value in [
+            ('Invoice No', data.get('invoice_no') or str(data.get('invoice_id', ''))),
+            ('Invoice Date', str(data.get('invoice_date') or '')),
+            ('Your Company', data.get('own_com_name') or ''),
+            ('Tagline', data.get('own_com_title') or ''),
+            ('Client Name', data.get('client_name') or ''),
+            ('Client ID', data.get('client_id') or ''),
+            ('Client Company', data.get('client_company') or ''),
+            ('Phone', data.get('client_phone') or ''),
+            ('Address', data.get('client_address') or ''),
+            ('Description', (data.get('billing_description') or '')[:200]),
+            ('Unit Price', str(data.get('unit_price') or '0')),
+            ('Subtotal', str(data.get('subtotal') or '0')),
+            ('Discount', str(data.get('discount') or '0')),
+            ('Total', str(data.get('total_price') or '0')),
+        ]:
+            if y < inch:
+                p.showPage()
+                p.setFont('Helvetica', 10)
+                y = height - inch
+            p.drawString(inch, y, f'{label}: {value}')
+            y -= 0.25 * inch
+        p.save()
+        buffer.seek(0)
+        filename = f"invoice_{data.get('invoice_no') or invoice_id}.pdf"
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+# CompanyInfo APIs
+class CompanyInfoListCreateView(generics.ListCreateAPIView):
+    """GET: List all company info. POST: Add new company info."""
+    queryset = CompanyInfo.objects.all()
+    serializer_class = CompanyInfoSerializer
+    parser_classes = [MultiPartParser, FormParser]  # accept JSON (default) and form/multipart
+
+    def get_parser_classes(self):
+        # Keep JSON parser for POST; list only needs GET
+        from rest_framework.parsers import JSONParser
+        return [JSONParser, MultiPartParser, FormParser]
+
+    def list(self, request, *args, **kwargs):
+        """Return list as { success, message, data } with data a JSON array."""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        # Ensure data is a list so frontend gets an array, not object with numeric keys
+        payload = list(serializer.data)
+        return Response({
+            'success': True,
+            'message': MSG_SUCCESS,
+            'data': payload,
+        })
+
+    def create(self, request, *args, **kwargs):
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            return Response({
+                'success': True,
+                'message': MSG_SUCCESS,
+                'data': serializer.data,
+            }, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': e.detail,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': str(e),
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CompanyInfoDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """GET: Single company info. PUT/PATCH: Update. DELETE: Delete."""
+    queryset = CompanyInfo.objects.all()
+    serializer_class = CompanyInfoSerializer
+    lookup_url_kwarg = 'com_id'
+
+    def retrieve(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance)
+            return Response({
+                'success': True,
+                'message': MSG_SUCCESS,
+                'data': serializer.data,
+            })
+        except NotFound:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': 'Company info not found.',
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    def update(self, request, *args, **kwargs):
+        try:
+            partial = kwargs.get('partial', request.method == 'PATCH')
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return Response({
+                'success': True,
+                'message': MSG_SUCCESS,
+                'data': serializer.data,
+            })
+        except ValidationError as e:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': e.detail,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except NotFound:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': 'Company info not found.',
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': str(e),
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            self.perform_destroy(instance)
+            return Response({
+                'success': True,
+                'message': MSG_SUCCESS,
+            }, status=status.HTTP_200_OK)
+        except NotFound:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': 'Company info not found.',
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': MSG_ERROR,
+                'errors': str(e),
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 # SuperAdmin (admin user) APIs

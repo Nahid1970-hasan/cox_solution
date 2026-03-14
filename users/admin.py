@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Owner, Project, Blog, LoginLog, SuperAdmin, Contact
+from .models import User, Owner, Project, Blog, LoginLog, SuperAdmin, Contact, BillingInvoice, CompanyInfo
 
 
 @admin.register(User)
@@ -69,3 +69,18 @@ class ContactAdmin(admin.ModelAdmin):
     list_display = ['contact_id', 'name', 'email', 'date']
     search_fields = ['name', 'email', 'message']
     ordering = ['-date', 'contact_id']
+
+
+@admin.register(BillingInvoice)
+class BillingInvoiceAdmin(admin.ModelAdmin):
+    list_display = ['invoice_id', 'invoice_no', 'client_name', 'client_company', 'invoice_date', 'total_price', 'subtotal', 'discount']
+    search_fields = ['invoice_no', 'client_name', 'client_company', 'billing_description']
+    list_filter = ['invoice_date']
+    ordering = ['-invoice_date', '-invoice_id']
+
+
+@admin.register(CompanyInfo)
+class CompanyInfoAdmin(admin.ModelAdmin):
+    list_display = ['com_id', 'own_com_name', 'own_com_title', 'own_com_logo']
+    search_fields = ['own_com_name', 'own_com_title']
+    ordering = ['com_id']
