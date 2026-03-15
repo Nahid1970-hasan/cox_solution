@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.hashers import make_password, check_password
@@ -223,6 +223,22 @@ class BillingInvoice(models.Model):
     class Meta:
         db_table = 'billing_invoice'
         ordering = ['-invoice_date', '-invoice_id']
+
+    def save(self, *args, **kwargs):
+        """Calculate total_price from unit_price and discount: total_price = unit_price - discount (e.g. 123.00 - 10.00 = 113.00)."""
+        unit = self.unit_price
+        disc = self.discount
+        if unit is None:
+            unit = Decimal('0')
+        else:
+            unit = Decimal(str(unit))
+        if disc is None:
+            disc = Decimal('0')
+        else:
+            disc = Decimal(str(disc))
+        total = unit - disc
+        self.total_price = max(Decimal('0'), total).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Invoice #{self.invoice_id} - {self.client_name or 'N/A'}"
