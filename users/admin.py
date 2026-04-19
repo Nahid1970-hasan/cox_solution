@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Owner, Project, Blog, LoginLog, SuperAdmin, Contact, BillingInvoice, CompanyInfo
+from .models import User, Owner, Project, Blog, LoginLog, SuperAdmin, Contact, BillingInvoice, CompanyInfo, Client, ClientPublic
 
 
 @admin.register(User)
@@ -84,3 +84,17 @@ class CompanyInfoAdmin(admin.ModelAdmin):
     list_display = ['com_id', 'own_com_name', 'own_com_title', 'own_com_logo']
     search_fields = ['own_com_name', 'own_com_title']
     ordering = ['com_id']
+
+
+@admin.register(Client)
+class ClientAdmin(admin.ModelAdmin):
+    list_display = ['client_id', 'client_name', 'email', 'phone_number', 'client_company_name', 'date']
+    search_fields = ['client_name', 'client_company_name', 'email', 'phone_number']
+    ordering = ['client_id']
+
+
+@admin.register(ClientPublic)
+class ClientPublicAdmin(admin.ModelAdmin):
+    list_display = ['client', 'client_name', 'client_company_name', 'email', 'date', 'synced_at']
+    search_fields = ['client_name', 'client_company_name', 'email']
+    ordering = ['client']

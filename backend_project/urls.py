@@ -18,7 +18,9 @@ from users.views import (
     ProjectPublicDashboardView,
     ProjectDetailView,
     BlogListCreateView,
+    BlogPublicDashboardView,
     BlogDetailView,
+    BlogImageByIdView,
     UploadFileView,
     ContactListCreateView,
     ContactDetailView,
@@ -27,6 +29,9 @@ from users.views import (
     InvoiceGeneratePDFView,
     CompanyInfoListCreateView,
     CompanyInfoDetailView,
+    ClientListCreateView,
+    ClientPublicDashboardView,
+    ClientDetailView,
 )
 
 urlpatterns = [
@@ -59,9 +64,19 @@ urlpatterns = [
     path('api/delete_project/<int:project_id>/', ProjectDetailView.as_view(), name='delete-project'),
     path('api/project_public_dashboard/', ProjectPublicDashboardView.as_view(), name='project-public-dashboard'),
 
+    # Client APIs
+    path('api/clientdashboard/', ClientListCreateView.as_view(), name='client-dashboard'),
+    path('api/clientall/<int:client_id>/', ClientDetailView.as_view(), name='clientall-detail'),
+    path('api/add_client/', ClientListCreateView.as_view(), name='add-client'),
+    path('api/update_client/<int:client_id>/', ClientDetailView.as_view(), name='update-client'),
+    path('api/delete_client/<int:client_id>/', ClientDetailView.as_view(), name='delete-client'),
+    path('api/client_public_dashboard/', ClientPublicDashboardView.as_view(), name='client-public-dashboard'),
+
     # Blog APIs
+    path('api/blogs_public_dashboard/', BlogPublicDashboardView.as_view(), name='blogs-public-dashboard'),
     path('api/blogdashboard/', BlogListCreateView.as_view(), name='blog-dashboard'),
     path('api/blogall/<int:blog_id>/', BlogDetailView.as_view(), name='blogall-detail'),
+    path('api/blog_image/<int:blog_id>/', BlogImageByIdView.as_view(), name='blog-image-by-id'),
     path('api/add_blog/', BlogListCreateView.as_view(), name='add-blog'),
     path('api/update_blog/<int:blog_id>/', BlogDetailView.as_view(), name='update-blog'),
     path('api/delete_blog/<int:blog_id>/', BlogDetailView.as_view(), name='delete-blog'),

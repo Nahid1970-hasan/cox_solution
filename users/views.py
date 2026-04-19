@@ -2,6 +2,7 @@ from io import BytesIO
 
 from django.contrib.auth import authenticate, login, logout
 from django.http import HttpResponse
+from django.shortcuts import redirect
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.debug import sensitive_variables
@@ -15,13 +16,14 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 
-from .models import User, Owner, Project, Blog, LoginLog, SuperAdmin, UploadFile, Contact, BillingInvoice, CompanyInfo
+from .models import User, Owner, Project, Blog, LoginLog, SuperAdmin, UploadFile, Contact, BillingInvoice, CompanyInfo, Client, ClientPublic
 from .serializers import (
     UserSerializer, UserCreateSerializer, UserRoleUpdateSerializer,
     UserLoginResponseSerializer,
     OwnerSerializer, ProjectSerializer, BlogSerializer, ContactSerializer, LoginSerializer,
     SuperAdminSerializer, SuperAdminCreateSerializer, SuperAdminUpdateSerializer,
     UploadFileSerializer, BillingInvoiceSerializer, CompanyInfoSerializer,
+    ClientSerializer, ClientPublicSerializer,
 )
 
 # Common response messages for insert/update/delete
@@ -37,6 +39,16 @@ class UserListCreateView(generics.ListCreateAPIView):
         if self.request.method == 'POST':
             return UserCreateSerializer
         return UserSerializer
+
+    def list(self, request, *args, **kwargs):
+        """Return every user with current DB fields (including status), not paginated {count, results}."""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'success': True,
+            'message': MSG_SUCCESS,
+            'data': list(serializer.data),
+        })
 
     def create(self, request, *args, **kwargs):
         try:
@@ -180,6 +192,30 @@ class ProjectPublicDashboardView(generics.ListAPIView):
     serializer_class = ProjectSerializer
 
 
+# Client APIs
+class ClientListCreateView(generics.ListCreateAPIView):
+    """GET: List all clients (dashboard). POST: Insert client (also creates client_public row)."""
+    queryset = Client.objects.all()
+    serializer_class = ClientSerializer
+
+
+class ClientPublicDashboardView(generics.ListAPIView):
+    """
+    GET: Public client dashboard.
+    Read-only list from client_public (kept in sync when clients are created or updated).
+    """
+    queryset = ClientPublic.objects.select_related('client').all()
+    serializer_class = ClientPublicSerializer
+
+
+class ClientDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """GET: Single client. PUT/PATCH: Update. DELETE: Delete client (and public row)."""
+    queryset = Client.objects.all()
+    serializer_class = ClientSerializer
+    lookup_field = 'client_id'
+    lookup_url_kwarg = 'client_id'
+
+
 class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     """GET: Single project. PUT/PATCH: Update. DELETE: Delete project."""
     queryset = Project.objects.all()
@@ -196,12 +232,54 @@ class BlogListCreateView(generics.ListCreateAPIView):
     parser_classes = [MultiPartParser, FormParser]
 
 
+class BlogPublicDashboardView(generics.ListAPIView):
+    """
+    GET: Public blog dashboard.
+    Read-only list of all blogs for the public frontend.
+    """
+    queryset = Blog.objects.all()
+    serializer_class = BlogSerializer
+
+
 class BlogDetailView(generics.RetrieveUpdateDestroyAPIView):
     """GET: Single blog. PUT/PATCH: Update. DELETE: Delete blog."""
     queryset = Blog.objects.all()
     serializer_class = BlogSerializer
     lookup_url_kwarg = 'blog_id'
     parser_classes = [MultiPartParser, FormParser]
+
+
+class BlogImageByIdView(APIView):
+    """GET: Resolve blog image by blog_id and redirect to real media URL."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, blog_id):
+        try:
+            blog = Blog.objects.get(blog_id=blog_id)
+        except Blog.DoesNotExist:
+            return Response(
+                {'success': False, 'message': MSG_ERROR, 'errors': 'Blog not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        image_url = ''
+        if getattr(blog, 'image_file', None):
+            image_url = blog.image_file.url
+        elif blog.img_url:
+            image_url = str(blog.img_url).strip()
+
+        if not image_url:
+            return Response(
+                {'success': False, 'message': MSG_ERROR, 'errors': 'Image not found for this blog.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if image_url.startswith(('http://', 'https://')):
+            return redirect(image_url)
+        if not image_url.startswith('/'):
+            image_url = '/' + image_url.lstrip('/')
+        return redirect(image_url)
 
 
 class UploadFileView(generics.ListCreateAPIView):

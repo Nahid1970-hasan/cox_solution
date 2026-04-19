@@ -244,6 +244,64 @@ class BillingInvoice(models.Model):
         return f"Invoice #{self.invoice_id} - {self.client_name or 'N/A'}"
 
 
+class Client(models.Model):
+    """Client table for dashboard: client id, name, email, phone, company, address, date; syncs to ClientPublic."""
+
+    client_id = models.AutoField(primary_key=True)
+    client_name = models.CharField(max_length=255)
+    email = models.EmailField(blank=True)
+    phone_number = models.CharField(max_length=50, blank=True)
+    client_company_name = models.CharField(max_length=255, blank=True)
+    address = models.TextField(blank=True)
+    date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'client'
+        ordering = ['client_id']
+
+    def __str__(self):
+        return self.client_name
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        ClientPublic.objects.update_or_create(
+            client=self,
+            defaults={
+                'client_name': self.client_name,
+                'email': self.email,
+                'phone_number': self.phone_number,
+                'client_company_name': self.client_company_name,
+                'address': self.address,
+                'date': self.date,
+            },
+        )
+
+
+class ClientPublic(models.Model):
+    """Public-facing copy; updated whenever Client is saved."""
+
+    client = models.OneToOneField(
+        Client,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name='public_snapshot',
+    )
+    client_name = models.CharField(max_length=255)
+    email = models.EmailField(blank=True)
+    phone_number = models.CharField(max_length=50, blank=True)
+    client_company_name = models.CharField(max_length=255, blank=True)
+    address = models.TextField(blank=True)
+    date = models.DateField(null=True, blank=True)
+    synced_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'client_public'
+        ordering = ['client']
+
+    def __str__(self):
+        return f"{self.client_name} (public)"
+
+
 class CompanyInfo(models.Model):
     """Company info table: com_id (PK), own_com_name, own_com_title, own_com_logo.
     Used by BillingInvoice: when an invoice links here (company_info), these fields
