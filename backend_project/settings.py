@@ -131,7 +131,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
-
+ALLOWED_HOSTS = [
+    "cox-solution.onrender.com",
+]
 # CORS: allow frontend to call API (fixes Network Error / preflight)
 CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
