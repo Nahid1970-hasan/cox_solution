@@ -20,10 +20,16 @@ SECRET_KEY = os.environ.get(
     'django-insecure-change-this-in-production'
 )
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('true', '1', 'yes')
+# Render sets RENDER=true; default DEBUG off there unless DJANGO_DEBUG overrides.
+_RENDER = os.environ.get('RENDER', '').lower() in ('true', '1', 'yes')
+_default_debug = 'false' if _RENDER else 'true'
+DEBUG = os.environ.get('DJANGO_DEBUG', _default_debug).lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = [h.strip() for h in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0').split(',') if h.strip()]
+# Hosts: env ALLOWED_HOSTS (comma-separated) plus sensible defaults (no duplicate block later).
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get('ALLOWED_HOSTS', '').split(',') if h.strip()]
+for _h in ('localhost', '127.0.0.1', '0.0.0.0', 'cox-solution.onrender.com'):
+    if _h not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_h)
 if DEBUG and '0.0.0.0' not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append('0.0.0.0')
 
@@ -79,17 +85,18 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend_project.wsgi.application'
 
-# Database - SQLite (default for local run) or MySQL (set USE_SQLITE=false)
+# Database: DATABASE_URL (Render Postgres, etc.) > MySQL (USE_SQLITE=false) > SQLite
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+_database_url = os.environ.get('DATABASE_URL', '').strip()
 _use_sqlite = os.environ.get('USE_SQLITE', 'True').lower() in ('true', '1', 'yes')
-if _use_sqlite:
+
+if _database_url:
+    import dj_database_url
+
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
+        'default': dj_database_url.config(conn_max_age=600),
     }
-else:
+elif not _use_sqlite:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.mysql',
@@ -101,6 +108,13 @@ else:
             'OPTIONS': {
                 'charset': 'utf8mb4',
             },
+        }
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
 
@@ -131,20 +145,25 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
-ALLOWED_HOSTS = [
-    "cox-solution.onrender.com",
-    "127.0.0.1",
-    "localhost",
-]
-# CORS: allow frontend to call API (fixes Network Error / preflight)
+
+# CORS: dev defaults + FRONTEND_URL (comma-separated) + CORS_EXTRA_ORIGINS
 CORS_ALLOWED_ORIGINS = [
-    "http://127.0.0.1:5173",
-    "http://localhost:5173",
-    "http://127.0.0.1:5174",
-    "http://localhost:5174",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
+    'http://127.0.0.1:5173',
+    'http://localhost:5173',
+    'http://127.0.0.1:5174',
+    'http://localhost:5174',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://cox-solution-admin.vercel.app',
 ]
+for _origin in FRONTEND_ORIGINS:
+    if _origin and _origin not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(_origin)
+for _origin in os.environ.get('CORS_EXTRA_ORIGINS', '').split(','):
+    _origin = _origin.strip()
+    if _origin and _origin not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(_origin)
+
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # allow any origin in dev to avoid Network Error
 CORS_ALLOW_METHODS = [
@@ -165,8 +184,13 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
 ]
 
-# CSRF: trust frontend origin for cookie-based auth
+# CSRF: trust frontend origins (must be full URL with scheme; include HTTPS prod)
 CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
+
+# Behind Render / reverse proxy HTTPS
+if _RENDER:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
 
 # API base URL (for frontend .env: REACT_APP_API_URL or VITE_API_URL etc.)
 API_BASE_URL = os.environ.get('API_BASE_URL', 'http://localhost:8000').strip()
