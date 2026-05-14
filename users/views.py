@@ -772,11 +772,24 @@ class LoginView(APIView):
                         pass
             except DatabaseError as exc:
                 logger.exception('Login database error: %s', exc)
+                err_lower = str(exc).lower()
+                if 'no such table' in err_lower or 'relation' in err_lower and 'does not exist' in err_lower:
+                    hint = (
+                        'Database tables are missing. On Render: set Start Command to '
+                        '`bash bin/render_start.sh` (or add preDeployCommand: '
+                        '`python manage.py migrate --noinput` in render.yaml), then redeploy.'
+                    )
+                elif 'unable to open database' in err_lower or 'readonly' in err_lower:
+                    hint = 'Database file is not writable. Use Render Postgres (DATABASE_URL) or a persistent disk.'
+                elif 'could not connect' in err_lower or 'connection refused' in err_lower or 'timeout' in err_lower:
+                    hint = 'Cannot reach the database. Check DATABASE_URL and that Postgres is running.'
+                else:
+                    hint = 'Database error. Run `python manage.py migrate` on the server and verify DATABASE_URL.'
                 return Response(
                     {
                         'success': False,
                         'message': 'Database is not ready. Run migrations on the server (python manage.py migrate).',
-                        'errors': str(exc) if dj_settings.DEBUG else 'Service temporarily unavailable.',
+                        'errors': hint,
                     },
                     status=status.HTTP_503_SERVICE_UNAVAILABLE,
                 )

@@ -1,12 +1,12 @@
-# Optional Render blueprint.
-# Dashboard alternative: Build = pip install -r requirements.txt
-# Start = bash bin/render_start.sh
+# Render Blueprint — migrations run before each deploy goes live.
+# Dashboard: set Start Command to: bash bin/render_start.sh
 # Env: DJANGO_SECRET_KEY, FRONTEND_URL=https://cox-solution-admin.vercel.app
-# Optional: DATABASE_URL (Render Postgres; avoids ephemeral SQLite data loss).
+# Optional: DATABASE_URL (Render Postgres; recommended vs ephemeral SQLite).
 
 services:
   - type: web
     name: cox-solution
     runtime: python
     buildCommand: pip install -r requirements.txt
+    preDeployCommand: python manage.py migrate --noinput
     startCommand: bash bin/render_start.sh
