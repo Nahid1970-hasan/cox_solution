@@ -166,6 +166,10 @@ for _origin in os.environ.get('CORS_EXTRA_ORIGINS', '').split(','):
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # allow any origin in dev to avoid Network Error
+# Preview deployments (e.g. cox-solution-admin-xxx.vercel.app) without listing each URL
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^https://.*\.vercel\.app$',
+]
 CORS_ALLOW_METHODS = [
     "DELETE",
     "GET",
@@ -191,6 +195,11 @@ CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
 if _RENDER:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     USE_X_FORWARDED_HOST = True
+    # Session/CSRF cookies work when the browser calls the API on Render from https://*.vercel.app
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = 'None'
+    CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_SAMESITE = 'None'
 
 # API base URL (for frontend .env: REACT_APP_API_URL or VITE_API_URL etc.)
 API_BASE_URL = os.environ.get('API_BASE_URL', 'http://localhost:8000').strip()
