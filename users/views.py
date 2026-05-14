@@ -1,4 +1,5 @@
 from io import BytesIO
+import logging
 
 from django.contrib.auth import authenticate, login, logout
 from django.http import HttpResponse
@@ -29,6 +30,8 @@ from .serializers import (
 # Common response messages for insert/update/delete
 MSG_SUCCESS = 'Successfully'
 MSG_ERROR = 'An error occurred'
+
+logger = logging.getLogger(__name__)
 
 
 class UserListCreateView(generics.ListCreateAPIView):
@@ -726,55 +729,114 @@ class LoginView(APIView):
     """POST: Login with username and password. Records event in login_log table."""
     permission_classes = [AllowAny]
     authentication_classes = []  # no auth required for login; avoids CSRF block on cross-origin POST
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def _login_payload(self, request):
+        """Build a plain dict for LoginSerializer from JSON, multipart, or form."""
+        raw = request.data
+        if hasattr(raw, 'dict'):
+            return dict(raw)
+        if isinstance(raw, dict):
+            return raw.copy()
+        if request.POST:
+            return request.POST.dict()
+        return {}
 
     @sensitive_variables('password')
     def post(self, request):
-        # Accept both JSON (request.data) and form data (request.POST)
-        data = request.data if request.data else request.POST
-        serializer = LoginSerializer(data=data)
-        if not serializer.is_valid():
-            return Response(
-                {'success': False, 'message': 'Missing or invalid username or password.', 'errors': serializer.errors},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        username = serializer.validated_data['username']
-        password = serializer.validated_data['password']
-        user = authenticate(request, username=username, password=password)
-        # If username looks like email, try authenticating by email
-        if user is None and '@' in username:
+        from django.conf import settings as dj_settings
+        from django.db import DatabaseError
+
+        try:
+            data = self._login_payload(request)
+            serializer = LoginSerializer(data=data)
+            if not serializer.is_valid():
+                return Response(
+                    {
+                        'success': False,
+                        'message': 'Missing or invalid username or password.',
+                        'errors': serializer.errors,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            username = serializer.validated_data['username']
+            password = serializer.validated_data['password']
             try:
-                u = User.objects.get(email=username)
-                if u.check_password(password):
-                    user = u
-            except User.DoesNotExist:
-                pass
-        if user is None:
+                user = authenticate(request, username=username, password=password)
+                if user is None and '@' in username:
+                    try:
+                        u = User.objects.get(email=username)
+                        if u.check_password(password):
+                            user = u
+                    except User.DoesNotExist:
+                        pass
+            except DatabaseError as exc:
+                logger.exception('Login database error: %s', exc)
+                return Response(
+                    {
+                        'success': False,
+                        'message': 'Database is not ready. Run migrations on the server (python manage.py migrate).',
+                        'errors': str(exc) if dj_settings.DEBUG else 'Service temporarily unavailable.',
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            if user is None:
+                return Response(
+                    {'success': False, 'message': 'Invalid username or password.'},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            if getattr(user, 'status', 'active') == 'inactive':
+                return Response(
+                    {'success': False, 'message': 'Your username is not active yet.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if not user.is_active:
+                return Response(
+                    {'success': False, 'message': 'Your username is not active yet.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            try:
+                login(request, user)
+            except Exception as exc:
+                logger.exception('login() session save failed: %s', exc)
+
+            try:
+                LoginLog.objects.create(user=user, action=LoginLog.LOGIN)
+            except Exception as exc:
+                logger.exception('LoginLog create failed: %s', exc)
+
+            try:
+                user_data = UserLoginResponseSerializer(user).data
+            except Exception as exc:
+                logger.exception('UserLoginResponseSerializer failed: %s', exc)
+                return Response(
+                    {
+                        'success': False,
+                        'message': MSG_ERROR,
+                        'errors': str(exc) if dj_settings.DEBUG else 'Unable to load user profile.',
+                    },
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            user_role = getattr(user, 'role', None) or user_data.get('role') or 'user'
             return Response(
-                {'success': False, 'message': 'Invalid username or password.'},
-                status=status.HTTP_401_UNAUTHORIZED
+                {
+                    'success': True,
+                    'message': 'Login successful.',
+                    'user': user_data,
+                    'role': user_role,
+                }
             )
-        # Only allow login when status is active and user.is_active
-        if getattr(user, 'status', 'active') == 'inactive':
+        except Exception as exc:
+            logger.exception('Login unexpected error: %s', exc)
             return Response(
-                {'success': False, 'message': 'Your username is not active yet.'},
-                status=status.HTTP_403_FORBIDDEN
+                {
+                    'success': False,
+                    'message': MSG_ERROR,
+                    'errors': str(exc) if dj_settings.DEBUG else 'An unexpected error occurred.',
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-        if not user.is_active:
-            return Response(
-                {'success': False, 'message': 'Your username is not active yet.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        # User is active: login and return all stored user data (no password)
-        login(request, user)
-        LoginLog.objects.create(user=user, action=LoginLog.LOGIN)
-        user_data = UserLoginResponseSerializer(user).data
-        user_role = getattr(user, 'role', None) or user_data.get('role') or 'user'
-        return Response({
-            'success': True,
-            'message': 'Login successful.',
-            'user': user_data,
-            'role': user_role,
-        })
 
 
 class LogoutView(APIView):
@@ -783,6 +845,9 @@ class LogoutView(APIView):
 
     def post(self, request):
         if request.user.is_authenticated:
-            LoginLog.objects.create(user=request.user, action=LoginLog.LOGOUT)
+            try:
+                LoginLog.objects.create(user=request.user, action=LoginLog.LOGOUT)
+            except Exception as exc:
+                logger.exception('LoginLog logout create failed: %s', exc)
         logout(request)
         return Response({'success': True, 'message': 'Logout successful.'})

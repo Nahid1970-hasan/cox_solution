@@ -195,11 +195,14 @@ CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
 if _RENDER:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     USE_X_FORWARDED_HOST = True
-    # Session/CSRF cookies work when the browser calls the API on Render from https://*.vercel.app
-    SESSION_COOKIE_SECURE = True
-    SESSION_COOKIE_SAMESITE = 'None'
-    CSRF_COOKIE_SECURE = True
-    CSRF_COOKIE_SAMESITE = 'None'
+    # SameSite=None + Secure is required for session cookies on cross-site requests
+    # (e.g. SPA on Vercel posting directly to Render). Some stacks break cookie handling;
+    # set CROSS_ORIGIN_SESSION=true only when you need that behaviour.
+    if os.environ.get('CROSS_ORIGIN_SESSION', '').lower() in ('true', '1', 'yes'):
+        SESSION_COOKIE_SECURE = True
+        SESSION_COOKIE_SAMESITE = 'None'
+        CSRF_COOKIE_SECURE = True
+        CSRF_COOKIE_SAMESITE = 'None'
 
 # API base URL (for frontend .env: REACT_APP_API_URL or VITE_API_URL etc.)
 API_BASE_URL = os.environ.get('API_BASE_URL', 'http://localhost:8000').strip()

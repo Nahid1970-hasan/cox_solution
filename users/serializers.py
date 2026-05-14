@@ -601,9 +601,32 @@ class SuperAdminUpdateSerializer(serializers.ModelSerializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    """Serializer for login request (username + password)."""
-    username = serializers.CharField()
+    """Serializer for login request (username + password).
+    Accepts username, userName, user_name, or email as the login identifier.
+    """
+    username = serializers.CharField(required=False, allow_blank=True)
+    userName = serializers.CharField(required=False, allow_blank=True)
+    user_name = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.CharField(required=False, allow_blank=True)
     password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        login_id = (
+            (attrs.get('username') or '').strip()
+            or (attrs.get('userName') or '').strip()
+            or (attrs.get('user_name') or '').strip()
+            or (attrs.get('email') or '').strip()
+        )
+        password = attrs.get('password', '')
+        if isinstance(password, str):
+            password = password.strip()
+        if not login_id or not password:
+            raise serializers.ValidationError(
+                {'non_field_errors': ['Username and password are required.']}
+            )
+        attrs['username'] = login_id
+        attrs['password'] = password
+        return attrs
 
 
 class UploadFileSerializer(serializers.ModelSerializer):
